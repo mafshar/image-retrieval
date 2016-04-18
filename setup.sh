@@ -15,6 +15,9 @@ source ~/.bash_profile 2>/dev/null || source ~/.profile
 # see if Xcode is downloaded on your machine
 xcode-select -p
 
+# updating Homebrew
+brew update
+
 # Launch the virtual environment if it exists
 VIRTUALENV="retrieval"
 if workon $VIRTUALENV 2>/dev/null; then
