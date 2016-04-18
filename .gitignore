@@ -62,7 +62,7 @@ target/
 .ipynb_checkpoints
 
 # Ignore the directory with all application data
-volumes/
+data/
 
 # Ignore Mac specific files
 .DS_Store
