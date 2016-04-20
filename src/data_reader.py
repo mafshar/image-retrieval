@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 import numpy as np
 import scipy as sp
@@ -8,7 +9,7 @@ import time
 
 INPUT_PATH = "../data/"
 OUTPUT_PATH = "../volume/"
-TYPES_OF_FEATURES = ["raw", "sift", "surf", "flat-histo"]
+TYPES_OF_FEATURES = ["raw", "color-mean-stdv", "flat-histo", "sift", "surf"]
 
 def create_output_dir(path):
     ## creating the output file if it doesn't exist:
@@ -20,20 +21,46 @@ def create_output_dir(path):
                 raise
     return
 
-def build_features():
+# not very useful
+def build_raw_features(img):
+    return img.flatten()
 
+# also might not be very useful
+def build_color_mean_stdv_features(img):
+    mean, stdv = cv2.meanStdDev(img)
+    return np.concatenate([means, stdv]).flatten()
+
+def build_flat_histo_features(img):
+    return cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
+        [0, 256, 0, 256, 0, 256]).flatten()
+
+
+def build_sift_features():
+    return
+
+def build_surf_features():
     return
 
 
-def read_image(path):
-    create_output_dir(OUTPUT_PATH)
-    files = glob.glob(INPUT_PATH + "*.jpg")
+def feature_writer(img, output_fh_features):
+    '''
+    builds the feature vector to be used
+    '''
+
+    return
+
+def samples_writer(files):
+    '''
+    Creates the feature vectors along with labels for all
+    the images and writes to file
+    '''
+    # looping through the images
     output_fh_features = open(OUTPUT_PATH + "features.txt", "w")
-    output_fh_label = open(OUTPUT_PATH + "labels.txt", "w")
+    output_fh_labels = open(OUTPUT_PATH + "labels.txt", "w")
     class_number = 0
     prev = None
     curr = None
-    # looping through the images
+    i = 0
     for file in files:
         filename = file.split("/")[-1]
         curr = int(filename.split(".")[0])
@@ -44,8 +71,20 @@ def read_image(path):
             # we're in a different class!
             class_number += 1
         output_fh_labels.write(str(class_number) + "\n")
-        build_features()
+        output_fh_features.write("lawl")
+        feature_writer(img, output_fh_labels)
         prev = curr
+        i += 1
+        print i
+        # if i > 20:
+        #     break
+    return
+
+
+def read_image(path):
+    create_output_dir(OUTPUT_PATH)
+    files = glob.glob(INPUT_PATH + "*.jpg")
+    samples_writer(files)
     return
 
 
