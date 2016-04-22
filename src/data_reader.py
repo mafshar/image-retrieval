@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
+import scipy.cluster.vq as spvq
 import numpy as np
-import scipy as sp
 import cv2
 import glob
 import os
@@ -9,7 +9,6 @@ import time
 
 INPUT_PATH = "../data/"
 OUTPUT_PATH = "../volume/"
-TYPES_OF_FEATURES = ["raw", "color-mean-stdv", "flat-histo", "sift", "surf"]
 
 def create_output_dir(path):
     ## creating the output file if it doesn't exist:
@@ -21,7 +20,7 @@ def create_output_dir(path):
                 raise
     return
 
-# not very useful
+# not very useful (will use PCA)
 def build_raw_features(img):
     return img.flatten()
 
@@ -34,19 +33,24 @@ def build_flat_histo_features(img):
     return cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
         [0, 256, 0, 256, 0, 256]).flatten()
 
-
-def build_sift_features():
+def build_sift_features(gray_img, whitening=False):
+    sift = cv2.xfeatures2d.SIFT_create()
+    keypoints, descriptors = sift.detectAndCompute(gray_img, None)
+    if whitening:
+        descriptors = spvq.whiten(descriptors)
+    # else:
     return
 
 def build_surf_features():
     return
 
-
 def feature_writer(img, output_fh_features):
     '''
     builds the feature vector to be used
     '''
-
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # histo_feature = build_flat_histo_features(img)
+    build_sift_features(gray_img)
     return
 
 def samples_writer(files):
@@ -55,8 +59,8 @@ def samples_writer(files):
     the images and writes to file
     '''
     # looping through the images
-    output_fh_features = open(OUTPUT_PATH + "features.txt", "w")
-    output_fh_labels = open(OUTPUT_PATH + "labels.txt", "w")
+    output_fh_features = open(os.path.join(OUTPUT_PATH, "features.txt"), "w")
+    output_fh_labels = open(os.path.join(OUTPUT_PATH, "labels.txt"), "w")
     class_number = 0
     prev = None
     curr = None
