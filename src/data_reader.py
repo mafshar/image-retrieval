@@ -36,9 +36,7 @@ def build_flat_histo_features(img):
 def build_sift_features(gray_img, whitening=False):
     sift = cv2.xfeatures2d.SIFT_create()
     keypoints, descriptors = sift.detectAndCompute(gray_img, None)
-    if whitening:
-        descriptors = spvq.whiten(descriptors)
-    # else:
+    descriptors = spvq.whiten(descriptors)
     return
 
 def build_surf_features():
@@ -53,48 +51,50 @@ def feature_writer(img, output_fh_features):
     build_sift_features(gray_img)
     return
 
-def samples_writer(files):
-    '''
-    Creates the feature vectors along with labels for all
-    the images and writes to file
-    '''
+## all images are in grayscale
+def main():
+    # create_output_dir(OUTPUT_PATH)
+    files = glob.glob(os.path.join(INPUT_PATH + "*.jpg"))
     # looping through the images
     output_fh_features = open(os.path.join(OUTPUT_PATH, "features.txt"), "w")
     output_fh_labels = open(os.path.join(OUTPUT_PATH, "labels.txt"), "w")
-    class_number = 0
-    prev = None
-    curr = None
-    i = 0
+    descriptors = []
+    images_and_descriptors = {}
+    counter = 10
     for file in files:
-        filename = file.split("/")[-1]
-        curr = int(filename.split(".")[0])
-        img = cv2.imread(file)
-        if not prev:
-            prev = curr
-        if curr - prev != 1:
-            # we're in a different class!
-            class_number += 1
-        output_fh_labels.write(str(class_number) + "\n")
-        output_fh_features.write("lawl")
-        feature_writer(img, output_fh_labels)
-        prev = curr
-        i += 1
-        print i
-        # if i > 20:
-        #     break
+        # t0 = time.time()
+        img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
+        img = cv2.resize(img, (1024, 768))
+        sift = cv2.xfeatures2d.SURF_create()
+        keypoints, des = sift.detectAndCompute(img, None)
+        images_and_descriptors[file] = des
+        for item in des:
+            descriptors.append(item)
+        # print time.time() - t0
+        # print des.shape
+        counter -= 1
+        if counter == 0:
+            break
+    ## whitening helps with kmeans convergence
+    descriptors = spvq.whiten(np.array(descriptors))
+
+    ## now do k-means clustering:
+    print "starting clustering"
+    t0 = time.time()
+    k = 1024
+    vocab, variance = spvq.kmeans(descriptors, k, 1)
+    print time.time() - t0
+
+    ## vector quantization:
+    data = []
+    feature = np.zeros(k)
+    # for img_path,
+    #     words, distance = spvq.vq(vocab, file)
+
+
+
     return
 
-
-def read_image(path):
-    create_output_dir(OUTPUT_PATH)
-    files = glob.glob(INPUT_PATH + "*.jpg")
-    samples_writer(files)
-    return
-
-
-def main():
-    read_image(INPUT_PATH)
-    return
 
 if __name__ == "__main__":
     main()
