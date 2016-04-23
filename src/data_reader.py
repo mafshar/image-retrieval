@@ -26,10 +26,29 @@ def create_output_dir(path):
                 raise
     return
 
-def surf_extraction(files, output_fh_features, output_fh_labels, \
-        weighting, normalize, counter, verbose, vlad=False,):
+# TODO: vlad feature vectors, labels
+def surf_extraction(files, output_path, weighting, normalize, counter, \
+        verbose, vlad=False,):
     '''
+    Function creates a directory in the presently working directory, writes
+    features and labels to that directory.
 
+    PARAMETERS:
+        files: an array of all the images in the directory to extract features
+            from
+        output_fh_features: file-handle for where to write the features
+        output_fh_labels: file-handle for where to write the labels
+        weighting: bool value to indicate whether tf-idf weighting should be
+            done to the features before writing them to disk
+        normalize: bool value to indicate whether the features should be
+            normalized before writing them to disk
+        counter: bool value to indicate whether verbose output is printed to
+            console
+        vlad: bool value to indicate whether it bag-of-visual words
+            representation should be used or VLAD feature vectors
+
+    RETURNS:
+        Nothing
     '''
     descriptors = []
     images_and_descriptors = [] ## matrix of (image_path, descriptors)
@@ -74,20 +93,16 @@ def surf_extraction(files, output_fh_features, output_fh_labels, \
     print "vector quantization took", time.time() - t3, "seconds"
     if normalize:
         data = MinMaxScaler().fit_transform(data)
-    print data
+
     return
 
 
-def build_features(input_path=INPUT_PATH, OUTPUT_PATH=OUTPUT_PATH, \
+def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         feature_type="sift", weighting=False, normalize=False, counter=-1, verbose=False):
     '''
     proper documentation here
     '''
-    ## getting the data and creating output
-    files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
-    output_fh_features = open(os.path.join(OUTPUT_PATH, "features.txt"), "w")
-    output_fh_labels = open(os.path.join(OUTPUT_PATH, "labels.txt"), "w")
-
+    files = glob.glob(os.path.join(input_path, "*.jpg"))
     if feature_type.lower() == "raw":
         return img.flatten()
     elif feature_type.lower() == "histo":
@@ -101,9 +116,8 @@ def build_features(input_path=INPUT_PATH, OUTPUT_PATH=OUTPUT_PATH, \
     elif feature_type.lower() == "sift-vlad":
         print "sifty-vlad"
     elif feature_type.lower() == "surf":
-        print "surfy"
-        surf_extraction(files, output_fh_features, output_fh_features, \
-                weighting, normalize, counter, verbose, vlad=False,)
+        surf_extraction(files, output_path, weighting, normalize, counter, \
+            verbose, vlad=False,)
     elif feature_type.lower() == "surf-vlad":
         print "surfy-vlad"
     elif feature_type.lower() == "alexnet":
@@ -113,13 +127,10 @@ def build_features(input_path=INPUT_PATH, OUTPUT_PATH=OUTPUT_PATH, \
 
     return
 
-
 ## all images are in grayscale
 def main():
     create_output_dir(OUTPUT_PATH)
     build_features(feature_type="surf", counter=10, verbose=True)
-
-
 
 
     return
