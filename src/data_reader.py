@@ -13,9 +13,15 @@ np.set_printoptions(threshold='nan')
 INPUT_PATH = "../data/"
 OUTPUT_PATH = "../volume/"
 
-def create_output_dir(path):
+def create_dir(path):
     '''
-    proper doc here
+    Function to create a directory in a given path if it doesn't exist.
+
+    PARAMETERS:
+        path: string value that is the path where the directory will be created
+
+    RETURNS:
+        Nothing.
     '''
     ## creating the output file if it doesn't exist:
     if not os.path.exists(os.path.dirname(path)):
@@ -52,6 +58,7 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     '''
     descriptors = []
     images_and_descriptors = [] ## matrix of (image_path, descriptors)
+    create_dir(output_path)
     print "obtaining the descriptors"
     t0 = time.time()
     num = 0
@@ -93,7 +100,7 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     print "vector quantization took", time.time() - t3, "seconds"
     if normalize:
         data = MinMaxScaler().fit_transform(data)
-
+    np.savez("surf", data)
     return
 
 
@@ -129,8 +136,9 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
 
 ## all images are in grayscale
 def main():
-    create_output_dir(OUTPUT_PATH)
-    build_features(feature_type="surf", counter=10, verbose=True)
+    create_dir(OUTPUT_PATH) # creates the top-level output directory
+    build_features(output_path=os.path.join(OUTPUT_PATH, "surf"), \
+        feature_type="surf", counter=10, verbose=True)
 
 
     return
