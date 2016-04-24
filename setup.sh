@@ -68,6 +68,10 @@ if [ ! -d "build" ]; then
     	-D PYTHON2_INCLUDE_DIR=/usr/local/Frameworks/Python.framework/Headers \
     	-D INSTALL_C_EXAMPLES=OFF -D INSTALL_PYTHON_EXAMPLES=ON \
     	-D BUILD_EXAMPLES=ON \
+    	-D WITH_CUDA=ON \
+    	-D ENABLE_FAST_MATH=1 \
+    	-D CUDA_FAST_MATH=1 \
+    	-D WITH_CUBLAS=1
     	-D OPENCV_EXTRA_MODULES_PATH=~/opencv_contrib/modules ..
     make -j4
     sudo make install
