@@ -81,6 +81,50 @@ def raw_extraction(files, output_path, normalize, dim_reduction, \
     np.save(os.path.join(output_path, "raw_features"), data)
     return
 
+def histo_extraction(files, output_path, normalize, counter, verbose):
+    '''
+    Function builds and writes color histogram features.
+
+    PARAMETERS:
+        files: an array of all the images in the directory to extract features
+            from
+        output_fh_features: file-handle for where to write the features
+        normalize: bool value to indicate whether the features should be
+            normalized before writing them to disk
+        counter: bool value to indicate whether verbose output is printed to
+            console
+
+    RETURNS:
+        Nothing
+
+    '''
+    create_dir(output_path)
+    print "obtaining the histo features"
+    t0 = time.time()
+    data = []
+    num = 0
+    for file in files:
+        t1 = time.time()
+        img = cv2.imread(file)
+        feature = cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
+            [0, 256, 0, 256, 0, 256]).flatten()
+        data.append(feature)
+        if verbose:
+            num += 1
+            print "\tcolor histogram feature for image", num, "took",
+            print time.time() - t1, "seconds"
+        if counter != -1:
+            if counter == 0:
+                break
+            else:
+                counter -= 1
+    # end for
+    if normalize:
+        data = MinMaxScaler().fit_transform(data)
+    print "writing to file..."
+    np.save(os.path.join(output_path, "histo_features"), data)
+    return
+
 # TODO: vlad feature vectors, labels
 def sift_extraction(files, output_path, weighting, normalize, counter, \
         verbose, vlad=False,):
@@ -239,11 +283,7 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         raw_extraction(files, output_path, normalize, dim_reduction,\
             counter, verbose)
     elif feature_type.lower() == "histo":
-        return cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
-            [0, 256, 0, 256, 0, 256]).flatten()
-    elif feature_type.lower() == "color_mean":
-        mean, stdv = cv2.meanStdDev(img)
-        return np.concatenate([means, stdv]).flatten()
+        histo_extraction(files, output_path, normalize, counter, verbose)
     elif feature_type.lower() == "sift":
         sift_extraction(files, output_path, weighting, normalize, counter, \
             verbose, vlad=False)
@@ -266,6 +306,8 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
 def main():
     create_dir(OUTPUT_PATH) # creates the top-level output directory
     # build_features(output_path=OUTPUT_PATH, feature_type="raw", counter=10,\
+    #     verbose=True)
+    # build_features(output_path=OUTPUT_PATH, feature_type="histo", counter=10,\
     #     verbose=True)
     # build_features(output_path=OUTPUT_PATH, feature_type="sift", counter=10,\
     #     verbose=True)
