@@ -38,14 +38,17 @@ def raw_extraction(files, output_path, normalize, dim_reduction, \
     Function builds and writes raw features.
 
     PARAMETERS:
-        files: an array of all the images in the directory to extract features
-            from
+        files: an array of all the image paths in the directory to extract
+            features from
         output_fh_features: file-handle for where to write the features
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
         dim_reduction: bool value to indicate whether the dimensionality of the
             features should be reduced before writing them to disk
-        counter: bool value to indicate whether verbose output is printed to
+        counter: int value to determine how many images should be included in
+            the feature extraction process; default is -1, indicating all
+            features
+        verbose: bool value to indicate whether verbose output is printed to
             console
 
     RETURNS:
@@ -86,12 +89,15 @@ def histo_extraction(files, output_path, normalize, counter, verbose):
     Function builds and writes color histogram features.
 
     PARAMETERS:
-        files: an array of all the images in the directory to extract features
-            from
+        files: an array of all the image paths in the directory to extract
+            features from
         output_fh_features: file-handle for where to write the features
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
-        counter: bool value to indicate whether verbose output is printed to
+        counter: int value to determine how many images should be included in
+            the feature extraction process; default is -1, indicating all
+            features
+        verbose: bool value to indicate whether verbose output is printed to
             console
 
     RETURNS:
@@ -132,14 +138,17 @@ def sift_extraction(files, output_path, weighting, normalize, counter, \
     Function builds and writes SIFT features.
 
     PARAMETERS:
-        files: an array of all the images in the directory to extract features
-            from
+        files: an array of all the image paths in the directory to extract
+            features from
         output_fh_features: file-handle for where to write the features
         weighting: bool value to indicate whether tf-idf weighting should be
             done to the features before writing them to disk
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
-        counter: bool value to indicate whether verbose output is printed to
+        counter: int value to determine how many images should be included in
+            the feature extraction process; default is -1, indicating all
+            features
+        verbose: bool value to indicate whether verbose output is printed to
             console
         vlad: bool value to indicate whether it bag-of-visual words
             representation should be used or VLAD feature vectors
@@ -205,14 +214,17 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     Function builds and writes SURF features.
 
     PARAMETERS:
-        files: an array of all the images in the directory to extract features
-            from
+        files: an array of all the image paths in the directory to extract
+            features from
         output_fh_features: file-handle for where to write the features
         weighting: bool value to indicate whether tf-idf weighting should be
             done to the features before writing them to disk
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
-        counter: bool value to indicate whether verbose output is printed to
+        counter: int value to determine how many images should be included in
+            the feature extraction process; default is -1, indicating all
+            features
+        verbose: bool value to indicate whether verbose output is printed to
             console
         vlad: bool value to indicate whether it bag-of-visual words
             representation should be used or VLAD feature vectors
@@ -271,38 +283,68 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
         np.save(os.path.join(output_path, "surf_features"), data)
     return
 
+def write_labels(files, output_path):
+    '''
+    doc here
+    '''
+    return
 
 def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         feature_type="sift", weighting=False, normalize=False, \
             dim_reduction=False, counter=-1, verbose=False):
     '''
-    proper documentation here
+    Function to extract features.
+
+    PARAMETERS:
+        input_path: string, path to where the data is located; by default it
+            will be INPUT_PATH
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
+        feature_type: string, describing the type of feature to be extracted;
+            possible values include 'raw', 'histo', 'sift', 'vlad_sift',
+            'surf', 'vlad-surf', 'alexnet'
+        weighting: bool value to indicate whether tf-idf weighting should be
+            done to the features before writing them to disk; used for 'sift',
+            'surf', 'vlad_sift', 'vlad_surf'
+        normalize: bool value to indicate whether the features should be
+            normalized before writing them to disk; used by all feature types
+        dim_reduction: bool value to indicate whether PCA dimensionality
+            reduction should be made or not; used for 'raw'
+        counter: int value to determine how many images should be included in
+            the feature extraction process; default is -1, indicating all
+            features
+        verbose: bool value to indicate whether verbose output is printed to
+            console
+
+    RETURNS:
+        Nothing
     '''
     files = glob.glob(os.path.join(input_path, "*.jpg"))
-    if feature_type.lower() == "raw":
+    if feature_type.strip().lower() == "raw":
         raw_extraction(files, output_path, normalize, dim_reduction,\
             counter, verbose)
-    elif feature_type.lower() == "histo":
+    elif feature_type.strip().lower() == "histo":
         histo_extraction(files, output_path, normalize, counter, verbose)
-    elif feature_type.lower() == "sift":
+    elif feature_type.strip().lower() == "sift":
         sift_extraction(files, output_path, weighting, normalize, counter, \
             verbose, vlad=False)
-    elif feature_type.lower() == "vlad_sift":
+    elif feature_type.strip().lower() == "vlad_sift":
         sift_extraction(files, output_path, weighting, normalize, counter, \
             verbose, vlad=True)
-    elif feature_type.lower() == "surf":
+    elif feature_type.strip().lower() == "surf":
         surf_extraction(files, output_path, weighting, normalize, counter, \
             verbose, vlad=False)
-    elif feature_type.lower() == "vlad_surf":
+    elif feature_type.strip().lower() == "vlad_surf":
         surf_extraction(files, output_path, weighting, normalize, counter, \
             verbose, vlad=True)
-    elif feature_type.lower() == "alexnet":
+    elif feature_type.strip().lower() == "alexnet":
         print "alexnet"
     else:
         print "Feature type not recognized"
     return
 
 ## all images are in grayscale
+## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
     create_dir(OUTPUT_PATH) # creates the top-level output directory
     # build_features(output_path=OUTPUT_PATH, feature_type="raw", counter=10,\
