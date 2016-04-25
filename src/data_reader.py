@@ -32,7 +32,8 @@ def create_dir(path):
                 raise
     return
 
-def raw_extraction(files, output_path, normalize, counter, verbose):
+def raw_extraction(files, output_path, normalize, dim_reduction, \
+        counter, verbose):
     '''
     Function builds and writes raw features.
 
@@ -42,6 +43,8 @@ def raw_extraction(files, output_path, normalize, counter, verbose):
         output_fh_features: file-handle for where to write the features
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
+        dim_reduction: bool value to indicate whether the dimensionality of the
+            features should be reduced before writing them to disk
         counter: bool value to indicate whether verbose output is printed to
             console
 
@@ -58,7 +61,10 @@ def raw_extraction(files, output_path, normalize, counter, verbose):
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
         img = cv2.resize(img, (1024, 768))
-        data.append(img.flatten())
+        if dim_reduction:
+            print
+        else:
+            data.append(img.flatten())
         if verbose:
             num += 1
             print "\traw feature for image", num, "took", time.time() - t1,
@@ -150,13 +156,15 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
 
 
 def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
-        feature_type="sift", weighting=False, normalize=False, counter=-1, verbose=False):
+        feature_type="sift", weighting=False, normalize=False, \
+            dim_reduction=False, counter=-1, verbose=False):
     '''
     proper documentation here
     '''
     files = glob.glob(os.path.join(input_path, "*.jpg"))
     if feature_type.lower() == "raw":
-        raw_extraction(files, output_path, normalize, counter, verbose)
+        raw_extraction(files, output_path, normalize, dim_reduction,\
+            counter, verbose)
     elif feature_type.lower() == "histo":
         return cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
             [0, 256, 0, 256, 0, 256]).flatten()
@@ -184,6 +192,7 @@ def main():
     create_dir(OUTPUT_PATH) # creates the top-level output directory
     build_features(output_path=OUTPUT_PATH, feature_type="raw", counter=10,\
         verbose=True)
+
 
     return
 
