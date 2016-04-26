@@ -7,11 +7,18 @@ import glob
 import os
 import time
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.decomposition import PCA
 np.set_printoptions(threshold='nan')
 
 
 INPUT_PATH = "../data/"
 OUTPUT_PATH = "../volume/"
+ERROR_FILES = [ "../data/Abyssinian_34.jpg", \
+                "../data/Egyptian_Mau_139.jpg", \
+                "../data/Egyptian_Mau_145.jpg",\
+                "../data/Egyptian_Mau_167.jpg",\
+                "../data/Egyptian_Mau_177.jpg",\
+                "../data/Egyptian_Mau_191.jpg"]
 
 def create_dir(path):
     '''
@@ -32,10 +39,11 @@ def create_dir(path):
                 raise
     return
 
-def raw_extraction(files, output_path, normalize, dim_reduction, \
-        counter, verbose):
+## TODO: PCA dimensionality reduction must be done, code NOT runnable
+def raw_extraction(files, output_path, normalize, counter, resize, verbose):
     '''
-    Function builds and writes raw features.
+    Function builds and writes raw features. Reduces the dimensionality of all
+        features to 100,000 dimensions, regardless of the dimensionality.
 
     PARAMETERS:
         files: an array of all the image paths in the directory to extract
@@ -43,8 +51,6 @@ def raw_extraction(files, output_path, normalize, dim_reduction, \
         output_fh_features: file-handle for where to write the features
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
-        dim_reduction: bool value to indicate whether the dimensionality of the
-            features should be reduced before writing them to disk
         counter: int value to determine how many images should be included in
             the feature extraction process; default is -1, indicating all
             features
@@ -61,13 +67,15 @@ def raw_extraction(files, output_path, normalize, dim_reduction, \
     data = []
     num = 0
     for file in files:
+        if file in ERROR_FILES:
+            print "Cannot detect image:", file
+            print "Skipping..."
+            continue
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
-        img = cv2.resize(img, (1024, 768))
-        if dim_reduction:
-            print
-        else:
-            data.append(img.flatten())
+        if resize:
+            img = cv2.resize(img, (1024, 768))
+        data.append(img.flatten())
         if verbose:
             num += 1
             print "\traw feature for image", num, "took", time.time() - t1,
@@ -78,6 +86,7 @@ def raw_extraction(files, output_path, normalize, dim_reduction, \
             else:
                 counter -= 1
     # end for
+    data = PCA(n_components=100000).fit(data).transform(data)
     if normalize:
         data = MinMaxScaler().fit_transform(data)
     print "writing to file..."
@@ -110,11 +119,16 @@ def histo_extraction(files, output_path, normalize, counter, verbose):
     data = []
     num = 0
     for file in files:
+        if file in ERROR_FILES:
+            print "Cannot detect image:", file
+            print "Skipping..."
+            continue
         t1 = time.time()
         img = cv2.imread(file)
-        feature = cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
+        data_point = cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
             [0, 256, 0, 256, 0, 256]).flatten()
-        data.append(feature)
+        print data_point.shape
+        data.append(data_point)
         if verbose:
             num += 1
             print "\tcolor histogram feature for image", num, "took",
@@ -163,6 +177,10 @@ def sift_extraction(files, output_path, weighting, normalize, counter, \
     t0 = time.time()
     num = 0
     for file in files:
+        if file in ERROR_FILES:
+            print "Cannot detect image:", file
+            print "Skipping..."
+            continue
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
         img = cv2.resize(img, (1024, 768))
@@ -239,9 +257,13 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     t0 = time.time()
     num = 0
     for file in files:
+        if file in ERROR_FILES:
+            print "Cannot detect image:", file
+            print "Skipping..."
+            continue
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
-        img = cv2.resize(img, (1024, 768))
+        # img = cv2.resize(img, (1024, 768))
         sift = cv2.xfeatures2d.SURF_create()
         keypoints, des = sift.detectAndCompute(img, None)
         images_and_descriptors.append((file, des))
@@ -277,6 +299,7 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     if normalize:
         data = MinMaxScaler().fit_transform(data)
     print "writing to file..."
+    print data
     if vlad:
         np.save(os.path.join(output_path, "vlad_surf_features"), data)
     else:
@@ -291,7 +314,7 @@ def write_labels(files, output_path):
 
 def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         feature_type="sift", weighting=False, normalize=False, \
-            dim_reduction=False, counter=-1, verbose=False):
+            counter=-1, resize=False, verbose=False):
     '''
     Function to extract features.
 
@@ -302,27 +325,29 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
             default it will be OUTPUT_PATH
         feature_type: string, describing the type of feature to be extracted;
             possible values include 'raw', 'histo', 'sift', 'vlad_sift',
-            'surf', 'vlad-surf', 'alexnet'
+            'surf', 'vlad-surf', 'alexnet'; if value is not supported, prints
+            error message and returns
         weighting: bool value to indicate whether tf-idf weighting should be
             done to the features before writing them to disk; used for 'sift',
             'surf', 'vlad_sift', 'vlad_surf'
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk; used by all feature types
-        dim_reduction: bool value to indicate whether PCA dimensionality
-            reduction should be made or not; used for 'raw'
         counter: int value to determine how many images should be included in
             the feature extraction process; default is -1, indicating all
             features
+        resize: bool value to indicate whether or not the raw images should be
+            resized or not; if True, resize value is [1024 x 768], or 786432
+            pixels
         verbose: bool value to indicate whether verbose output is printed to
             console
 
     RETURNS:
         Nothing
     '''
-    files = glob.glob(os.path.join(input_path, "*.jpg"))
+    if os.path.isdir(input_path):
+        files = glob.glob(os.path.join(input_path, "*.jpg"))
     if feature_type.strip().lower() == "raw":
-        raw_extraction(files, output_path, normalize, dim_reduction,\
-            counter, verbose)
+        raw_extraction(files, output_path, normalize, counter, resize, verbose)
     elif feature_type.strip().lower() == "histo":
         histo_extraction(files, output_path, normalize, counter, verbose)
     elif feature_type.strip().lower() == "sift":
@@ -347,14 +372,17 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
 ## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
     create_dir(OUTPUT_PATH) # creates the top-level output directory
+    ## this needs to be heavily modified:
     # build_features(output_path=OUTPUT_PATH, feature_type="raw", counter=10,\
     #     verbose=True)
-    # build_features(output_path=OUTPUT_PATH, feature_type="histo", counter=10,\
+    ## BUILT FEATURE:
+    # build_features(output_path=OUTPUT_PATH, feature_type="histo", counter=-1,\
     #     verbose=True)
     # build_features(output_path=OUTPUT_PATH, feature_type="sift", counter=10,\
     #     verbose=True)
-    # build_features(output_path=OUTPUT_PATH, feature_type="surf", counter=10,\
-        # verbose=True)
+    # build_features(output_path=OUTPUT_PATH, feature_type="surf", counter=140,\
+    #     verbose=True)
+
 
     return
 
