@@ -145,6 +145,58 @@ def histo_extraction(files, output_path, normalize, counter, verbose):
     np.save(os.path.join(output_path, "histo_features"), data)
     return
 
+def write_descriptors(files, output_path, counter, verbose, des_type="sift"):
+    '''
+    doc here
+    '''
+    des_filename = des_type.strip().lower() + "_features.npy"
+    if os.path.isfile(os.path.join(output_path, des_filename)):
+        print "File already exists"
+        return
+    descriptors = []
+    print "obtaining the descriptors"
+    t0 = time.time()
+    num = 0
+    for file in files:
+        if file in ERROR_FILES:
+            print "Cannot detect image:", file
+            print "Skipping..."
+            continue
+        t1 = time.time()
+        img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
+        # img = cv2.resize(img, (1024, 768))
+        if des_type.strip().lower() == "sift":
+            extractor = cv2.xfeatures2d.SIFT_create()
+        elif des_type.strip().lower() == "surf":
+            extractor = cv2.xfeatures2d.SURF_create()
+        else:
+            print "Descriptor type not recognized. Exiting..."
+            exit(1)
+        keypoints, des = extractor.detectAndCompute(img, None)
+        for item in des:
+            descriptors.append(item)
+        if verbose:
+            num += 1
+            if des_type.strip().lower() == "sift":
+                print "\tSIFT descriptors for image", num, "took", time.time() - t1,
+                print "seconds"
+            elif des_type.strip().lower() == "surf":
+                print "\tSURF descriptors for image", num, "took", time.time() - t1,
+                print "seconds"
+        if counter != -1:
+            if counter == 0:
+                break
+            else:
+                counter -= 1
+    # end for
+    print "getting all the descriptors took", time.time() - t0, "seconds"
+    print "writing to file..."
+    if des_type.strip().lower() == "sift":
+        np.save(os.path.join(output_path, "sift_descriptors"), descriptors)
+    elif des_type.strip().lower() == "surf":
+        np.save(os.path.join(output_path, "surf_descriptors"), descriptors)
+    return
+
 # TODO: vlad feature vectors, labels
 def sift_extraction(files, output_path, weighting, normalize, counter, \
         verbose, vlad=False,):
@@ -299,7 +351,6 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     if normalize:
         data = MinMaxScaler().fit_transform(data)
     print "writing to file..."
-    print data
     if vlad:
         np.save(os.path.join(output_path, "vlad_surf_features"), data)
     else:
@@ -368,6 +419,7 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         print "Feature type not recognized"
     return
 
+
 ## all images are in grayscale
 ## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
@@ -380,11 +432,11 @@ def main():
     #     verbose=True)
     # build_features(output_path=OUTPUT_PATH, feature_type="sift", counter=10,\
     #     verbose=True)
-    # build_features(output_path=OUTPUT_PATH, feature_type="surf", counter=140,\
+    # build_features(output_path=OUTPUT_PATH, feature_type="surf", counter=1500,\
     #     verbose=True)
-
-
-    return
+    # files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
+    # write_descriptors(files, output_path=OUTPUT_PATH, counter=-1, verbose=True, des_type="surf")
+    # tmp = np.load(os.path.join(OUTPUT_PATH, "surf_descriptors.npy"))
 
 
 if __name__ == "__main__":
