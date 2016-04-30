@@ -14,10 +14,10 @@ np.set_printoptions(threshold='nan')
 
 '''
 7.3 thousand images
-
+3k images for training
+2k images for validating
+1.3k images for testing
 '''
-
-
 
 INPUT_PATH = "../data/"
 OUTPUT_PATH = "../volume/"
@@ -82,7 +82,7 @@ def raw_extraction(files, output_path, normalize, counter, resize, verbose):
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
         if resize:
-            img = cv2.resize(img, (1024, 768))
+            img = cv2.resize(img, (350, 400))
         data.append(img.flatten())
         if verbose:
             num += 1
@@ -153,14 +153,31 @@ def histo_extraction(files, output_path, normalize, counter, verbose):
     np.save(os.path.join(output_path, "histo_features"), data)
     return
 
-def write_descriptors(files, output_path, verbose, des_type="sift"):
+def extract_descriptors(files, output_path, verbose, des_type):
     '''
-    doc here
+    Function to extract descriptors from images. Writes to a numpy file in the
+        output_path.
+
+    PARAMETERS:
+        files: an array of all the image paths in the directory to extract
+            features from
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
+        verbose: bool value to indicate whether verbose output is printed to
+            console
+        des_type: string to indicate what kind of extraction technique should
+            be use; extraction techniques are 'sift' and 'surf'; if type not
+            recognized, code will return None
+
+    RETURNS:
+        If the descriptors already exist in ouput_path, then it will load the
+            descriptors and return them. Otherwise, it will return the
+            descriptors after creating them.
     '''
     des_filename = des_type.strip().lower() + "_descriptors.npy"
-    # if os.path.isfile(os.path.join(output_path, des_filename)):
-    #     print "File already exists"
-    #     return
+    if os.path.isfile(os.path.join(output_path, des_filename)):
+        print "File already exists"
+        return np.load(os.path.join(output_path, des_filename))
     descriptors = []
     print "obtaining the descriptors"
     t0 = time.time()
@@ -173,16 +190,13 @@ def write_descriptors(files, output_path, verbose, des_type="sift"):
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
         img = cv2.resize(img, (350, 400))
-        # cv2.imshow('im', img)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
         if des_type.strip().lower() == "sift":
             extractor = cv2.xfeatures2d.SIFT_create()
         elif des_type.strip().lower() == "surf":
             extractor = cv2.xfeatures2d.SURF_create()
         else:
-            print "Descriptor type not recognized. Exiting..."
-            exit(1)
+            print "Descriptor type not recognized."
+            return None
         keypoints, des = extractor.detectAndCompute(img, None)
         for item in des:
             descriptors.append(item)
@@ -195,12 +209,6 @@ def write_descriptors(files, output_path, verbose, des_type="sift"):
                 print "\tSURF descriptors for image", num, "took", time.time() - t1,
                 print "seconds",
             print "with shape", des.shape
-
-        # if counter != -1:
-        #     if counter == 0:
-        #         break
-        #     else:
-        #         counter -= 1
     # end for
     print "getting all the descriptors took", time.time() - t0, "seconds"
     print "writing to file..."
@@ -208,22 +216,54 @@ def write_descriptors(files, output_path, verbose, des_type="sift"):
         np.save(os.path.join(output_path, "sift_descriptors"), descriptors)
     elif des_type.strip().lower() == "surf":
         np.save(os.path.join(output_path, "surf_descriptors"), descriptors)
-    return
+    return descriptors
 
-def write_vocabulary(output_path, des_type="sift"):
-    ## now do k-means clustering:
+def create_vocabulary(output_path, des_type, k=1024):
+    '''
+    Function to generate the vocabulary of the image set using the descriptors
+        using KMeans Clustering Algorithm -- current implementation uses
+        parallelized sklearn.cluster.KMeans()
+
+    PARAMETERS:
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
+        des_type: string to indicate what kind of extraction technique should
+            be use; extraction techniques are 'sift' and 'surf'; if type not
+            recognized, code will return None
+        k: int value representing the number of clusters to be generated;
+            default value is 1024
+
+    RETURNS:
+        If the vocabulary already exist in ouput_path, then it will load the
+            vocabulary and return the array. Otherwise, it will return the
+            vocabulary after creating it.
+    '''
+    vocab_filename = des_type.strip().lower() + "_vocabulary_" + str(k) + ".npy"
+    if os.path.isfile(os.path.join(output_path, vocab_filename)):
+        print "File already exists"
+        return np.load(os.path.join(output_path, vocab_filename))
     print "starting kmeans clustering"
-    t2 = time.time()
+    t0 = time.time()
     des_filename = des_type.strip().lower() + "_descriptors.npy"
     descriptors = np.load(os.path.join(output_path, des_filename))
-    k = 700
-    # tester = descriptors[:40000]
-    vocab = KMeans(n_clusters=k, max_iter=50).fit(descriptors).cluster_centers_
-    print "kmeans took", time.time() - t2, "seconds"
+    vocab = KMeans(n_clusters=k, max_iter=100, n_jobs=-1).fit(descriptors).cluster_centers_
+    print "kmeans took", time.time() - t0, "seconds"
     if des_type.strip().lower() == "sift":
-        np.save(os.path.join(output_path, "sift_vocabulary"), vocab)
+        np.save(os.path.join(output_path, "sift_vocabulary_" + str(k)), vocab)
     elif des_type.strip().lower() == "surf":
-        np.save(os.path.join(output_path, "surf_vocabulary"), vocab)
+        np.save(os.path.join(output_path, "surf_vocabulary_" + str(k)), vocab)
+    return vocab
+
+def vector_quantization(images_and_descriptors, vocab):
+    print "starting vector quantization"
+    t0 = time.time()
+    data = np.zeros((len(images_and_descriptors), k))
+    for i in range(len(images_and_descriptors)):
+        words, distance = spvq.vq(images_and_descriptors[i][1], vocab)
+        for word in words:
+            data[i][word] += 1
+    # end for
+    print "vector quantization took", time.time() - t0, "seconds"
     return
 
 # TODO: vlad feature vectors, labels
@@ -251,42 +291,6 @@ def sift_extraction(files, output_path, weighting, normalize, counter, \
     RETURNS:
         Nothing
     '''
-    create_dir(output_path)
-    descriptors = []
-    images_and_descriptors = [] ## matrix of (image_path, descriptors)
-    print "obtaining the descriptors"
-    t0 = time.time()
-    num = 0
-    for file in files:
-        if file in ERROR_FILES:
-            print "Cannot detect image:", file
-            print "Skipping..."
-            continue
-        t1 = time.time()
-        img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
-        img = cv2.resize(img, (1024, 768))
-        sift = cv2.xfeatures2d.SIFT_create()
-        keypoints, des = sift.detectAndCompute(img, None)
-        images_and_descriptors.append((file, des))
-        for item in des:
-            descriptors.append(item)
-        if verbose:
-            num += 1
-            print "\tSIFT descriptors for image", num, "took", time.time() - t1,
-            print "seconds"
-        if counter != -1:
-            if counter == 0:
-                break
-            else:
-                counter -= 1
-    # end for
-    print "getting all the descriptors took", time.time() - t0, "seconds"
-    ## now do k-means clustering:
-    print "starting kmeans clustering"
-    t2 = time.time()
-    k = 1024
-    vocab, variance = spvq.kmeans(descriptors, k, 1)
-    print "kmeans took", time.time() - t2, "seconds"
     ## vector quantization:
     print "starting vector quantization"
     t3 = time.time()
@@ -295,8 +299,6 @@ def sift_extraction(files, output_path, weighting, normalize, counter, \
         words, distance = spvq.vq(images_and_descriptors[i][1], vocab)
         for word in words:
             data[i][word] += 1
-    # end for
-    print "vector quantization took", time.time() - t3, "seconds"
     if normalize:
         data = MinMaxScaler().fit_transform(data)
     print "writing to file..."
@@ -331,53 +333,6 @@ def surf_extraction(files, output_path, weighting, normalize, counter, \
     RETURNS:
         Nothing
     '''
-    create_dir(output_path)
-    descriptors = []
-    images_and_descriptors = [] ## matrix of (image_path, descriptors)
-    print "obtaining the descriptors"
-    t0 = time.time()
-    num = 0
-    for file in files:
-        if file in ERROR_FILES:
-            print "Cannot detect image:", file
-            print "Skipping..."
-            continue
-        t1 = time.time()
-        img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
-        # img = cv2.resize(img, (1024, 768))
-        sift = cv2.xfeatures2d.SURF_create()
-        keypoints, des = sift.detectAndCompute(img, None)
-        images_and_descriptors.append((file, des))
-        for item in des:
-            descriptors.append(item)
-        if verbose:
-            num += 1
-            print "\tSURF descriptors for image", num, "took", time.time() - t1,
-            print "seconds"
-        if counter != -1:
-            if counter == 0:
-                break
-            else:
-                counter -= 1
-    # end for
-    print "getting all the descriptors took", time.time() - t0, "seconds"
-    ## vector quantization:
-    print "starting vector quantization"
-    t3 = time.time()
-    data = np.zeros((len(images_and_descriptors), k))
-    for i in range(len(images_and_descriptors)):
-        words, distance = spvq.vq(images_and_descriptors[i][1], vocab)
-        for word in words:
-            data[i][word] += 1
-    # end for
-    print "vector quantization took", time.time() - t3, "seconds"
-    if normalize:
-        data = MinMaxScaler().fit_transform(data)
-    print "writing to file..."
-    if vlad:
-        np.save(os.path.join(output_path, "vlad_surf_features"), data)
-    else:
-        np.save(os.path.join(output_path, "surf_features"), data)
     return
 
 def write_labels(files, output_path, verbose):
@@ -415,7 +370,7 @@ def write_labels(files, output_path, verbose):
 
 def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         feature_type="sift", weighting=False, normalize=False, \
-            counter=-1, resize=False, verbose=False):
+            counter=-1, verbose=False):
     '''
     Function to extract features.
 
@@ -436,9 +391,6 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
         counter: int value to determine how many images should be included in
             the feature extraction process; default is -1, indicating all
             features
-        resize: bool value to indicate whether or not the raw images should be
-            resized or not; if True, resize value is [1024 x 768], or 786432
-            pixels
         verbose: bool value to indicate whether verbose output is printed to
             console
 
@@ -470,6 +422,7 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
     return
 
 
+
 ## all images are in grayscale
 ## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
@@ -484,32 +437,7 @@ def main():
     #     verbose=True)
     # build_features(output_path=OUTPUT_PATH, feature_type="surf", counter=1500,\
     #     verbose=True)
-    files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
-    # training_files = shuffle(files, random_state=10038, n_samples=3000)
-    # write_descriptors(training_files, output_path=OUTPUT_PATH, verbose=True, des_type="surf")
-    # tmp = np.load(os.path.join(OUTPUT_PATH, "surf_descriptors.npy"))
-    # print len(tmp)
-    # write_vocabulary(OUTPUT_PATH, des_type="surf")
-    # tmp = np.load(os.path.join(OUTPUT_PATH, "surf_vocabulary.npy"))
-    # print len(tmp)
-    # print len(tmp[0])
 
-
-    write_labels(files, OUTPUT_PATH, verbose=True)
-
-
-    # for file in files:
-    #     if file in ERROR_FILES:
-    #         print "Cannot detect image:", file
-    #         print "Skipping..."
-    #         continue
-    #     t1 = time.time()
-    #     img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
-    #     # img = cv2.resize(img, (1024, 768))
-    #     sift = cv2.xfeatures2d.SURF_create()
-    #     keypoints, des = sift.detectAndCompute(img, None)
-    #     print des.shape
-    #     break
 
 
 
