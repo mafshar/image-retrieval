@@ -48,20 +48,18 @@ def create_dir(path):
     return
 
 ## TODO: PCA dimensionality reduction must be done, code NOT runnable
-def raw_extraction(files, output_path, normalize, counter, resize, verbose):
+def get_raw_features(files, output_path, normalize, verbose):
     '''
     Function builds and writes raw features. Reduces the dimensionality of all
-        features to 100,000 dimensions, regardless of the dimensionality.
+    features to 100,000 dimensions, regardless of the dimensionality.
 
     PARAMETERS:
         files: an array of all the image paths in the directory to extract
             features from
-        output_fh_features: file-handle for where to write the features
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
         normalize: bool value to indicate whether the features should be
-            normalized before writing them to disk
-        counter: int value to determine how many images should be included in
-            the feature extraction process; default is -1, indicating all
-            features
+                normalized before writing them to disk
         verbose: bool value to indicate whether verbose output is printed to
             console
 
@@ -88,11 +86,6 @@ def raw_extraction(files, output_path, normalize, counter, resize, verbose):
             num += 1
             print "\traw feature for image", num, "took", time.time() - t1,
             print "seconds"
-        if counter != -1:
-            if counter == 0:
-                break
-            else:
-                counter -= 1
     # end for
     data = PCA(n_components=100000).fit(data).transform(data)
     if normalize:
@@ -101,19 +94,17 @@ def raw_extraction(files, output_path, normalize, counter, resize, verbose):
     np.save(os.path.join(output_path, "raw_features"), data)
     return
 
-def histo_extraction(files, output_path, normalize, counter, verbose):
+def get_histo_extraction(files, output_path, normalize, verbose):
     '''
     Function builds and writes color histogram features.
 
     PARAMETERS:
         files: an array of all the image paths in the directory to extract
             features from
-        output_fh_features: file-handle for where to write the features
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
         normalize: bool value to indicate whether the features should be
-            normalized before writing them to disk
-        counter: int value to determine how many images should be included in
-            the feature extraction process; default is -1, indicating all
-            features
+                normalized before writing them to disk
         verbose: bool value to indicate whether verbose output is printed to
             console
 
@@ -141,11 +132,6 @@ def histo_extraction(files, output_path, normalize, counter, verbose):
             num += 1
             print "\tcolor histogram feature for image", num, "took",
             print time.time() - t1, "seconds"
-        if counter != -1:
-            if counter == 0:
-                break
-            else:
-                counter -= 1
     # end for
     if normalize:
         data = MinMaxScaler().fit_transform(data)
@@ -156,7 +142,7 @@ def histo_extraction(files, output_path, normalize, counter, verbose):
 def extract_descriptors(files, output_path, verbose, des_type):
     '''
     Function to extract descriptors from images. Writes to a numpy file in the
-        output_path.
+    output_path.
 
     PARAMETERS:
         files: an array of all the image paths in the directory to extract
@@ -171,8 +157,8 @@ def extract_descriptors(files, output_path, verbose, des_type):
 
     RETURNS:
         If the descriptors already exist in ouput_path, then it will load the
-            descriptors and return them. Otherwise, it will return the
-            descriptors after creating them.
+        descriptors and return them. Otherwise, it will return the
+        descriptors after creating them.
     '''
     des_filename = des_type.strip().lower() + "_descriptors.npy"
     if os.path.isfile(os.path.join(output_path, des_filename)):
@@ -235,8 +221,8 @@ def create_vocabulary(output_path, des_type, k=1024):
 
     RETURNS:
         If the vocabulary already exist in ouput_path, then it will load the
-            vocabulary and return the array. Otherwise, it will return the
-            vocabulary after creating it.
+        vocabulary and return the array. Otherwise, it will return the
+        vocabulary after creating it.
     '''
     vocab_filename = des_type.strip().lower() + "_vocabulary_" + str(k) + ".npy"
     if os.path.isfile(os.path.join(output_path, vocab_filename)):
@@ -255,85 +241,77 @@ def create_vocabulary(output_path, des_type, k=1024):
     return vocab
 
 def vector_quantization(images_and_descriptors, vocab):
+    '''
+    Function to do vector quantization to generate single-row feature vectors
+        representing the given images.
+
+    PARAMETERS:
+        images_and_descriptors: list of tuples of the form (image_name, descriptors)
+            where image_name is a string value and descriptors are the corresponding
+            descriptors for that image in a numpy array
+        vocab: numpy array of the vocabulary of the image-set
+
+    RETURNS:
+        A matrix where each row is a feature vector representing the images in
+        the images_and_descriptors list
+
+    '''
     print "starting vector quantization"
     t0 = time.time()
-    data = np.zeros((len(images_and_descriptors), k))
+    data = np.zeros((len(images_and_descriptors), len(vocab)))
     for i in range(len(images_and_descriptors)):
         words, distance = spvq.vq(images_and_descriptors[i][1], vocab)
         for word in words:
             data[i][word] += 1
     # end for
     print "vector quantization took", time.time() - t0, "seconds"
-    return
+    return data
 
-# TODO: vlad feature vectors, labels
-def sift_extraction(files, output_path, weighting, normalize, counter, \
+
+def get_keypoint_features(files, output_path, des_type, weighting, normalize, \
         verbose, vlad=False,):
     '''
-    Function builds and writes SIFT features.
+    Function that builds and writes keypoint features (SIFT or SURF features)
+        Calls:  extract_descriptors(...)
+                create_vocabulary(...)
+                vector_quantization(...)
 
     PARAMETERS:
         files: an array of all the image paths in the directory to extract
             features from
-        output_fh_features: file-handle for where to write the features
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
+        des_type: string to indicate what kind of extraction technique should
+            be use; extraction techniques are 'sift' and 'surf'; if type not
+            recognized, code will return None
         weighting: bool value to indicate whether tf-idf weighting should be
             done to the features before writing them to disk
         normalize: bool value to indicate whether the features should be
             normalized before writing them to disk
-        counter: int value to determine how many images should be included in
-            the feature extraction process; default is -1, indicating all
-            features
         verbose: bool value to indicate whether verbose output is printed to
             console
         vlad: bool value to indicate whether it bag-of-visual words
             representation should be used or VLAD feature vectors
 
     RETURNS:
-        Nothing
+        If the features already exist in ouput_path, then it will load the
+            features and return the feature vectors . Otherwise, it will return
+            the features after creating it.
     '''
-    ## vector quantization:
-    print "starting vector quantization"
-    t3 = time.time()
-    data = np.zeros((len(images_and_descriptors), k))
-    for i in range(len(images_and_descriptors)):
-        words, distance = spvq.vq(images_and_descriptors[i][1], vocab)
-        for word in words:
-            data[i][word] += 1
+    filename = des_type + "_features"
+    descriptors = extract_descriptors(files, output_path, verbose, des_type)
+    vocab = create_vocabulary(output_path, des_type, k=1024)
+    images_and_descriptors = get_mapped_descriptors(files, verbose, des_type)
+    if vlad:
+        print "this is vlad"
+        data = []
+        filename = "vlad_" + filename
+    else:
+        data = vector_quantization(images_and_descriptors, vocab)
     if normalize:
         data = MinMaxScaler().fit_transform(data)
     print "writing to file..."
-    if vlad:
-        np.save(os.path.join(output_path, "vlad_sift_features"), data)
-    else:
-        np.save(os.path.join(output_path, "sift_features"), data)
-    return
-
-# TODO: vlad feature vectors, labels
-def surf_extraction(files, output_path, weighting, normalize, counter, \
-        verbose, vlad=False,):
-    '''
-    Function builds and writes SURF features.
-
-    PARAMETERS:
-        files: an array of all the image paths in the directory to extract
-            features from
-        output_fh_features: file-handle for where to write the features
-        weighting: bool value to indicate whether tf-idf weighting should be
-            done to the features before writing them to disk
-        normalize: bool value to indicate whether the features should be
-            normalized before writing them to disk
-        counter: int value to determine how many images should be included in
-            the feature extraction process; default is -1, indicating all
-            features
-        verbose: bool value to indicate whether verbose output is printed to
-            console
-        vlad: bool value to indicate whether it bag-of-visual words
-            representation should be used or VLAD feature vectors
-
-    RETURNS:
-        Nothing
-    '''
-    return
+    np.save(os.path.join(output_path, filename), data)
 
 def write_labels(files, output_path, verbose):
     '''
@@ -420,7 +398,6 @@ def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
     else:
         print "Feature type not recognized"
     return
-
 
 
 ## all images are in grayscale
