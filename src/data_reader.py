@@ -342,6 +342,10 @@ def vector_quantization(images_and_descriptors, vocab):
     print "vector quantization took", time.time() - t0, "seconds"
     return data
 
+## TODO:
+def vlad_quantization():
+    return
+
 def get_keypoint_features(files, output_path, des_type, weighting=False, \
         normalize=False, verbose=False, vlad=False, k=1024):
     '''
@@ -388,22 +392,24 @@ def get_keypoint_features(files, output_path, des_type, weighting=False, \
     print "writing to file..."
     np.save(os.path.join(output_path, filename), data)
 
-def create_multi_labels(files, output_path, verbose):
+def create_multi_labels(input_path=INPUT_PATH_MULTI, \
+        output_path=OUTPUT_PATH_MULTI, verbose=False):
     '''
     Function to create the multi-class labels and the dictionary that maps
     a breed name to a label.
 
     PARAMETERS:
-        files: an array of all the image paths in the directory to extract
-            features from
+        input_path: path where the data is located - default is
+            "../data/multi_class"
         output_path: string, path to where the data should be written; by
-            default it will be OUTPUT_PATH
+            default it will be "../volume/multi_class"
         verbose: bool value to indicate whether verbose output is printed to
             console
 
     RETURNS:
         Nothing
     '''
+    files = glob.glob(os.path.join(input_path, "*.jpg"))
     print "getting the labels"
     t0 = time.time()
     filenames = [f.strip().split("/")[2] for f in files]
@@ -433,15 +439,66 @@ def create_multi_labels(files, output_path, verbose):
     fh.close()
     return
 
-def creat_data_files():
+def get_animal_files(input_path):
+    dog_path = os.path.join(input_path, "dog")
+    cat_path = os.path.join(input_path, "cat")
+    all_dogs = []
+    all_cats = []
+    for root, dirs, files in os.walk(dog_path):
+        all_dogs.append(root)
+    for root, dirs, files in os.walk(cat_path):
+        all_cats.append(root)
+    all_dogs.pop(0)
+    all_cats.pop(0)
+    dog_files = []
+    cat_files = []
+    for path in all_dogs:
+        files = glob.glob(os.path.join(path, "*.jpg"))
+        dog_files.extend(files)
+    for path in all_cats:
+        files = glob.glob(os.path.join(path, "*.jpg"))
+        cat_files.extend(files)
+    return dog_files, cat_files
+
+def create_binary_labels(input_path=INPUT_PATH_BIN, \
+        output_path=OUTPUT_PATH_BIN, verbose=False):
+    '''
+    Function to create the multi-class labels and the dictionary that maps
+    a breed name to a label. Assumes dog is +1, cat is -1
+
+    PARAMETERS:
+        input_path: path where the data is located - default is
+            "../data/binary_class"
+        output_path: string, path to where the data should be written; by
+            default it will be "../volume/binary_class"
+        verbose: bool value to indicate whether verbose output is printed to
+            console
+
+    RETURNS:
+        Nothing
+    '''
+    dog_files, cat_files = get_animal_files(input_path)
+
+    # files = glob.glob(os.path.join(input_path, "*.jpg"))
+    # print "getting the labels"
+    # t0 = time.time()
+    # filenames = [f.strip().split("/")[2] for f in files]
+    # lookup_labels = []
+    # labels = []
+    # curr_label = 1
+    # prev_breed = None
+    # num = 1
     return
+
+
 
 
 ## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
-    create_dir(OUTPUT_PATH) # creates the top-level output directory
+    create_dir(OUTPUT_PATH_MULTI) # creates the top-level output directory
+    create_dir(OUTPUT_PATH_BIN) # creates the top-level output directory
     # create_vocabulary(output_path=OUTPUT_PATH, des_type='surf', k=1024)
-    files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
+    # files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
     ##SIFT
     # get_keypoint_features(files=files, output_path=OUTPUT_PATH, des_type='sift',\
     #     verbose=True)
@@ -454,7 +511,8 @@ def main():
     # get_raw_features(files=files, output_path=OUTPUT_PATH, pca=True, verbose=True)
     ##HISTO
     # get_histo_extraction(files=files, output_path=OUTPUT_PATH, verbose=True)
-
+    create_binary_labels(input_path=INPUT_PATH_BIN, \
+            output_path=OUTPUT_PATH_BIN, verbose=False)
 
 
     ## test run for sift:
