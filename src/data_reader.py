@@ -20,16 +20,17 @@ np.set_printoptions(threshold='nan')
 1.3k images for testing
 '''
 
-INPUT_PATH_MULTI = "../data/multi_class"
-INPUT_PATH_BIN = "../data/binary_class"
-OUTPUT_PATH_MULTI = "../volume/multi_class"
-OUTPUT_PATH_BIN = "../volume/binary_class"
-ERROR_FILES = [ "../data/Abyssinian_34.jpg", \
-                "../data/Egyptian_Mau_139.jpg", \
-                "../data/Egyptian_Mau_145.jpg",\
-                "../data/Egyptian_Mau_167.jpg",\
-                "../data/Egyptian_Mau_177.jpg",\
-                "../data/Egyptian_Mau_191.jpg"]
+INPUT_PATH_MULTI = "../data/multi_class/"
+INPUT_PATH_BIN = "../data/binary_class/"
+OUTPUT_PATH = "../volume/"
+OUTPUT_PATH_MULTI = "../volume/multi_class/"
+OUTPUT_PATH_BIN = "../volume/binary_class/"
+ERROR_FILES = [ "Abyssinian_34.jpg", \
+                "Egyptian_Mau_139.jpg", \
+                "Egyptian_Mau_145.jpg",\
+                "data/Egyptian_Mau_167.jpg",\
+                "Egyptian_Mau_177.jpg",\
+                "Egyptian_Mau_191.jpg"]
 
 def create_dir(path):
     '''
@@ -77,7 +78,8 @@ def get_raw_features(files, output_path, pca=False, normalize=False, verbose=Fal
     data = []
     num = 0
     for file in files:
-        if file in ERROR_FILES:
+        img_filename = file.strip().split("/")[-1]
+        if img_filename in ERROR_FILES:
             print "Cannot detect image:", file
             print "Skipping..."
             continue
@@ -134,7 +136,8 @@ def get_histo_extraction(files, output_path, normalize=False, verbose=False):
     data = []
     num = 0
     for file in files:
-        if file in ERROR_FILES:
+        img_filename = file.strip().split("/")[-1]
+        if img_filename in ERROR_FILES:
             print "Cannot detect image:", file
             print "Skipping..."
             continue
@@ -142,12 +145,11 @@ def get_histo_extraction(files, output_path, normalize=False, verbose=False):
         img = cv2.imread(file)
         data_point = cv2.calcHist([img], [0, 1, 2], None, [8, 8, 8], \
             [0, 256, 0, 256, 0, 256]).flatten()
-        print data_point.shape
         data.append(data_point)
         if verbose:
             num += 1
             print "\tcolor histogram feature for image", num, "took",
-            print time.time() - t1, "seconds"
+            print time.time() - t1, "seconds", "with shape", data_point.shape
     # end for
     if normalize:
         data = MinMaxScaler().fit_transform(data)
@@ -186,7 +188,8 @@ def extract_descriptors(files, output_path, des_type, verbose=False):
     t0 = time.time()
     num = 0
     for file in files:
-        if file in ERROR_FILES:
+        img_filename = file.strip().split("/")[-1]
+        if img_filename in ERROR_FILES:
             print "Cannot detect image:", file
             print "Skipping..."
             continue
@@ -243,13 +246,13 @@ def get_mapped_descriptors(files, verbose, des_type):
         is a string value and descriptors are the corresponding descriptors for
         that image in a numpy array.
     '''
-
     images_and_descriptors = []
     print "obtaining the descriptors"
     num = 0
     t0 = time.time()
     for file in files:
-        if file in ERROR_FILES:
+        img_filename = file.strip().split("/")[-1]
+        if img_filename in ERROR_FILES:
             print "Cannot detect image:", file
             print "Skipping..."
             continue
@@ -276,7 +279,6 @@ def get_mapped_descriptors(files, verbose, des_type):
             print "with shape", des.shape
     # end for
     print "getting all the descriptors took", time.time() - t0, "seconds"
-    print "writing to files..."
     return images_and_descriptors
 
 def create_vocabulary(output_path, des_type, k=1024):
@@ -351,7 +353,7 @@ def get_keypoint_features(files, output_path, des_type, weighting=False, \
     '''
     Function that builds and writes keypoint features (SIFT or SURF features)
         Calls:  extract_descriptors(...)
-                create_vocabulary(...)
+                create_vocabulary(...) // this is always passed "../volume/"
                 vector_quantization(...)
 
     PARAMETERS:
@@ -378,7 +380,7 @@ def get_keypoint_features(files, output_path, des_type, weighting=False, \
     '''
     filename = des_type + "_features_" + str(k)
     descriptors = extract_descriptors(files, output_path, des_type, verbose)
-    vocab = create_vocabulary(output_path, des_type, k)
+    vocab = create_vocabulary(OUTPUT_PATH, des_type, k)
     images_and_descriptors = get_mapped_descriptors(files, verbose, des_type)
     if vlad:
         print "this is vlad"
@@ -461,7 +463,7 @@ def get_animal_files(input_path):
     return dog_files, cat_files
 
 def create_binary_labels(input_path=INPUT_PATH_BIN, \
-        output_path=OUTPUT_PATH_BIN, verbose=False):
+        output_path=OUTPUT_PATH_BIN):
     '''
     Function to create the multi-class labels and the dictionary that maps
     a breed name to a label. Assumes dog is +1, cat is -1
@@ -471,26 +473,18 @@ def create_binary_labels(input_path=INPUT_PATH_BIN, \
             "../data/binary_class"
         output_path: string, path to where the data should be written; by
             default it will be "../volume/binary_class"
-        verbose: bool value to indicate whether verbose output is printed to
-            console
 
     RETURNS:
         Nothing
     '''
     dog_files, cat_files = get_animal_files(input_path)
-
-    # files = glob.glob(os.path.join(input_path, "*.jpg"))
-    # print "getting the labels"
-    # t0 = time.time()
-    # filenames = [f.strip().split("/")[2] for f in files]
-    # lookup_labels = []
-    # labels = []
-    # curr_label = 1
-    # prev_breed = None
-    # num = 1
+    fhd = open(os.path.join(output_path, "dog_labels.txt"), 'w')
+    fhc = open(os.path.join(output_path, "cat_labels.txt"), 'w')
+    for item in dog_files:
+        fhd.write("1\n")
+    for item in cat_files:
+        fhc.write("-1\n")
     return
-
-
 
 
 ## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
@@ -499,20 +493,32 @@ def main():
     create_dir(OUTPUT_PATH_BIN) # creates the top-level output directory
     # create_vocabulary(output_path=OUTPUT_PATH, des_type='surf', k=1024)
     # files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
+    dog_files, cat_files = get_animal_files(INPUT_PATH_BIN)
+
     ##SIFT
     # get_keypoint_features(files=files, output_path=OUTPUT_PATH, des_type='sift',\
     #     verbose=True)
-    # print len(sifty)
-    # print len(sifty[0])
+    # get_keypoint_features(files=dog_files, output_path=OUTPUT_PATH_BIN+"dog", des_type='sift',\
+    #     verbose=True)
+    # get_keypoint_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", des_type='sift',\
+    #     verbose=True)
     ##SURF
     # get_keypoint_features(files=files, output_path=OUTPUT_PATH, des_type='surf',\
     #     verbose=True, k=1000)
+    # get_keypoint_features(files=dog_files, output_path=OUTPUT_PATH_BIN+"dog", des_type='surf',\
+    #     verbose=True, k=1000)
+    # get_keypoint_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", des_type='surf',\
+    #     verbose=True, k=1000)
     ##RAW
     # get_raw_features(files=files, output_path=OUTPUT_PATH, pca=True, verbose=True)
+    # get_raw_features(files=dog_files, output_path=OUTPUT_PATH_BIN+"dog", pca=True, verbose=True)
+    # get_raw_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", pca=True, verbose=True)
     ##HISTO
     # get_histo_extraction(files=files, output_path=OUTPUT_PATH, verbose=True)
-    create_binary_labels(input_path=INPUT_PATH_BIN, \
-            output_path=OUTPUT_PATH_BIN, verbose=False)
+    # get_histo_extraction(files=dog_files, output_path=OUTPUT_PATH_BIN+"dog", verbose=True)
+    # get_histo_extraction(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", verbose=True)
+
+    # create_binary_labels(input_path=INPUT_PATH_BIN, output_path=OUTPUT_PATH_BIN)
 
 
     ## test run for sift:
