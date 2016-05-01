@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.utils import shuffle
 from sklearn.neighbors import LSHForest
+from sklearn.cross_validation import train_test_split
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.set_printoptions(threshold='nan')
 
@@ -32,7 +33,7 @@ OUTPUT_PATH_BIN = "../volume/binary_class/"
 ERROR_FILES = [ "Abyssinian_34.jpg", \
                 "Egyptian_Mau_139.jpg", \
                 "Egyptian_Mau_145.jpg",\
-                "data/Egyptian_Mau_167.jpg",\
+                "Egyptian_Mau_167.jpg",\
                 "Egyptian_Mau_177.jpg",\
                 "Egyptian_Mau_191.jpg"]
 
@@ -362,9 +363,8 @@ def vlad_quantization(images_and_descriptors, vocab, verbose=False):
     RETURNS:
         A matrix where each row is a VLAD feature vector representing the
         images in the images_and_descriptors list
-
     '''
-    print "creating VLAD feature vectors"
+    print "creating VLAD feature vectors (with whitening)"
     t0 = time.time()
     vlad_features = []
     for i in range(len(images_and_descriptors)):
@@ -385,9 +385,6 @@ def vlad_quantization(images_and_descriptors, vocab, verbose=False):
     vlad_features = np.array(vlad_features)
     data = PCA(whiten=True).fit_transform(vlad_features)
     print "all VLAD feature vectors took", time.time() - t0, "seconds"
-    print len(data)
-    print len(data)
-    print data[0]
     return data
 
 def get_keypoint_features(files, output_path, des_type, weighting=False, \
@@ -560,11 +557,78 @@ def main():
 
     # create_binary_labels(input_path=INPUT_PATH_BIN, output_path=OUTPUT_PATH_BIN)
 
-    get_keypoint_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", des_type='surf',\
-        verbose=True, vlad=True, k=256)
-
     # create_vocabulary(output_path=OUTPUT_PATH, des_type='sift', k=64)
     # create_vocabulary(output_path=OUTPUT_PATH, des_type='surf', k=64)
+
+
+    ## RUNNING
+
+    #binary class data splits:
+    with open(OUTPUT_PATH_BIN+"/dog/labels.txt", "r") as fh:
+        content = fh.readlines()
+    dog_labels = [int(line.strip()) for line in content]
+    with open(OUTPUT_PATH_BIN+"/cat/labels.txt", "r") as fh:
+        content = fh.readlines()
+    cat_labels = [int(line.strip()) for line in content]
+    labels = np.array(dog_labels + cat_labels)
+
+    rng = np.random.RandomState(10038)
+
+    #HISTO
+    # dog_histo = np.load(OUTPUT_PATH_BIN+"/dog/histo_features.npy")
+    # cat_histo = np.load(OUTPUT_PATH_BIN+"/cat/histo_features.npy")
+    # histo_features = np.vstack((dog_histo, cat_histo))
+    # permutation = rng.permutation(len(histo_features))
+    # h_features, h_labels = histo_features[permutation], labels[permutation]
+    # histo_train, histo_test, labels_train, labels_test = train_test_split(\
+    #     h_features, h_labels, train_size=0.75, random_state=10038)
+    # np.savez(os.path.join(OUTPUT_PATH_BIN, "histo_data"), x_train=histo_train, \
+    #     x_test=histo_test, y_train=labels_train, y_test=labels_test)
+    # npzfile = np.load(os.path.join(OUTPUT_PATH_BIN, "histo_data.npz"))
+    # print npzfile.files
+
+    #SIFT
+    # dog_sift = np.load(OUTPUT_PATH_BIN+"/dog/sift_features_1024.npy")
+    # cat_sift = np.load(OUTPUT_PATH_BIN+"/cat/sift_features_1024.npy")
+    # sift_features = np.vstack((dog_sift, cat_sift))
+    # permutation = rng.permutation(len(sift_features))
+    #
+    # print sift_features.shape
+    #
+    # sift_features, sift_labels = sift_features[permutation], labels[permutation]
+    # sift_train, sift_test, labels_train, labels_test = train_test_split(\
+    #     sift_features, sift_labels, train_size=0.75, random_state=10038)
+    # np.savez(os.path.join(OUTPUT_PATH_BIN, "sift_data_1024"), x_train=sift_train, \
+    #     x_test=sift_test, y_train=labels_train, y_test=labels_test)
+    # npzfile = np.load(os.path.join(OUTPUT_PATH_BIN, "sift_data_1024.npz"))
+    # print npzfile["y_train"]
+
+    #SURF
+    # dog_surf = np.load(OUTPUT_PATH_BIN+"/dog/surf_features_1000.npy")
+    # cat_surf = np.load(OUTPUT_PATH_BIN+"/cat/surf_features_1000.npy")
+    # surf_features = np.vstack((dog_surf, cat_surf))
+    # permutation = rng.permutation(len(surf_features))
+    #
+    # print surf_features.shape
+    #
+    # surf_features, surf_labels = surf_features[permutation], labels[permutation]
+    # surf_train, surf_test, labels_train, labels_test = train_test_split(\
+    #     surf_features, surf_labels, train_size=0.75, random_state=10038)
+    # np.savez(os.path.join(OUTPUT_PATH_BIN, "surf_data_1000"), x_train=surf_train, \
+    #     x_test=surf_test, y_train=labels_train, y_test=labels_test)
+    # npzfile = np.load(os.path.join(OUTPUT_PATH_BIN, "surf_data_1000.npz"))
+    # print npzfile["y_train"]
+
+    # get_keypoint_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", des_type='surf',\
+    #     verbose=True, vlad=True, k=64)
+    # get_keypoint_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", des_type='sift',\
+    #     verbose=True, vlad=True, k=64)
+
+    # get_keypoint_features(files=dog_files, output_path=OUTPUT_PATH_BIN+"dog", des_type='surf',\
+    #     verbose=True, vlad=True, k=256)
+    # get_keypoint_features(files=dog_files, output_path=OUTPUT_PATH_BIN+"dog", des_type='sift',\
+    #     verbose=True, vlad=True, k=256)
+
 
 
 if __name__ == "__main__":
