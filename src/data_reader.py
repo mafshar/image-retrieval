@@ -1,16 +1,20 @@
 #!/usr/bin/env python
 
 import scipy.cluster.vq as spvq
+import scipy.spatial.distance as spsd
 import numpy as np
 import cv2
 import glob
 import os
 import time
+import warnings
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.utils import shuffle
+from sklearn.neighbors import LSHForest
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 np.set_printoptions(threshold='nan')
 
 '''
@@ -305,16 +309,16 @@ def create_vocabulary(output_path, des_type, k=1024):
     if os.path.isfile(os.path.join(output_path, vocab_filename)):
         print "Vocab file already exists"
         return np.load(os.path.join(output_path, vocab_filename))
-    print "starting kmeans clustering"
-    t0 = time.time()
     des_filename = des_type.strip().lower() + "_descriptors.npy"
     descriptors = np.load(os.path.join(output_path, des_filename))
+    print "starting kmeans clustering"
+    t0 = time.time()
     vocab = KMeans(n_clusters=k, max_iter=100, n_jobs=-1).fit(descriptors).cluster_centers_
     print "kmeans took", time.time() - t0, "seconds"
     if des_type.strip().lower() == "sift":
-        np.save(os.path.join(output_path, "sift_vocabulary_" + str(k)), vocab)
+        np.save(os.path.join(output_path, vocab_filename), vocab)
     elif des_type.strip().lower() == "surf":
-        np.save(os.path.join(output_path, "surf_vocabulary_" + str(k)), vocab)
+        np.save(os.path.join(output_path, vocab_filename), vocab)
     return vocab
 
 def vector_quantization(images_and_descriptors, vocab):
@@ -331,7 +335,6 @@ def vector_quantization(images_and_descriptors, vocab):
     RETURNS:
         A matrix where each row is a feature vector representing the images in
         the images_and_descriptors list
-
     '''
     print "starting vector quantization"
     t0 = time.time()
@@ -344,9 +347,48 @@ def vector_quantization(images_and_descriptors, vocab):
     print "vector quantization took", time.time() - t0, "seconds"
     return data
 
-## TODO:
-def vlad_quantization():
-    return
+def vlad_quantization(images_and_descriptors, vocab, verbose=False):
+    '''
+    Function to do create VLAD (Vector of Locally Aggregated Descriptors)
+    to generate single-row feature vector representing the given images.
+    Whitening is applied after VLAD feature vectors are created.
+
+    PARAMETERS:
+        images_and_descriptors: list of tuples of the form (image_name, descriptors)
+            where image_name is a string value and descriptors are the corresponding
+            descriptors for that image in a numpy array
+        vocab: numpy array of the vocabulary of the image-set
+
+    RETURNS:
+        A matrix where each row is a VLAD feature vector representing the
+        images in the images_and_descriptors list
+
+    '''
+    print "creating VLAD feature vectors"
+    t0 = time.time()
+    vlad_features = []
+    for i in range(len(images_and_descriptors)):
+        t1 = time.time()
+        for point in images_and_descriptors[i][1]:
+            vlad =[0.0] * len(vocab)
+            lshf = LSHForest(random_state=42)
+            lshf.fit(vocab)
+            #get distance using approximate nearest neighbors
+            distances, centroid_ndx = lshf.kneighbors(point, n_neighbors=len(vocab))
+            for index, centroid in enumerate(centroid_ndx[0]):
+                vlad[centroid] = distances[0][index]
+            vlad = np.array(vlad)
+        if verbose:
+            print "vlad feature for image", i + 1, "took", time.time() - t1,
+            print "seconds"
+        vlad_features.append(vlad)
+    vlad_features = np.array(vlad_features)
+    data = PCA(whiten=True).fit_transform(vlad_features)
+    print "all VLAD feature vectors took", time.time() - t0, "seconds"
+    print len(data)
+    print len(data)
+    print data[0]
+    return data
 
 def get_keypoint_features(files, output_path, des_type, weighting=False, \
         normalize=False, verbose=False, vlad=False, k=1024):
@@ -383,11 +425,10 @@ def get_keypoint_features(files, output_path, des_type, weighting=False, \
     vocab = create_vocabulary(OUTPUT_PATH, des_type, k)
     images_and_descriptors = get_mapped_descriptors(files, verbose, des_type)
     if vlad:
-        print "this is vlad"
-        data = []
+        data = vlad_quantization(images_and_descriptors, vocab, verbose)
         filename = "vlad_" + filename
     else:
-        data = vector_quantization(images_and_descriptors, vocab)
+        data = vector_quantization(images_and_descriptors, vocab, verbose)
     if normalize:
         data = MinMaxScaler().fit_transform(data)
         filename += "_normalized"
@@ -486,13 +527,12 @@ def create_binary_labels(input_path=INPUT_PATH_BIN, \
         fhc.write("-1\n")
     return
 
-
-## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
     create_dir(OUTPUT_PATH_MULTI) # creates the top-level output directory
     create_dir(OUTPUT_PATH_BIN) # creates the top-level output directory
     # create_vocabulary(output_path=OUTPUT_PATH, des_type='surf', k=1024)
-    # files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
+
+    all_files = glob.glob(os.path.join(INPUT_PATH_MULTI, "*.jpg"))
     dog_files, cat_files = get_animal_files(INPUT_PATH_BIN)
 
     ##SIFT
@@ -520,26 +560,11 @@ def main():
 
     # create_binary_labels(input_path=INPUT_PATH_BIN, output_path=OUTPUT_PATH_BIN)
 
+    get_keypoint_features(files=cat_files, output_path=OUTPUT_PATH_BIN+"cat", des_type='surf',\
+        verbose=True, vlad=True, k=256)
 
-    ## test run for sift:
-
-
-
-
-    # training_files = shuffle(files, random_state=10038, n_samples=3000)
-    # des = extract_descriptors(files=training_files, output_path=OUTPUT_PATH, \
-    #     verbose=True, des_type='sift')
-    # vocab = create_vocabulary(output_path=OUTPUT_PATH, des_type='sift', k=1024)
-    # get_keypoint_features(files=training_files, output_path=OUTPUT_PATH, \
-    #     des_type='sift', verbose=True)
-        # raw = np.load("../volume/raw_features.npy")
-        # raw = MinMaxScaler().fit_transform(raw)
-        # np.save("../volume/raw_features_normalized", raw)
-        # t0 = time.time()
-        # raw = PCA(n_components=10000).fit_transform(raw)
-        # print time.time() - t0
-        # np.save("../volume/raw_features_pca", raw)
-
+    # create_vocabulary(output_path=OUTPUT_PATH, des_type='sift', k=64)
+    # create_vocabulary(output_path=OUTPUT_PATH, des_type='surf', k=64)
 
 
 if __name__ == "__main__":
