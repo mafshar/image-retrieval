@@ -7,6 +7,7 @@ import glob
 import os
 import time
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.utils import shuffle
@@ -19,8 +20,10 @@ np.set_printoptions(threshold='nan')
 1.3k images for testing
 '''
 
-INPUT_PATH = "../data/"
-OUTPUT_PATH = "../volume/"
+INPUT_PATH_MULTI = "../data/multi_class"
+INPUT_PATH_BIN = "../data/binary_class"
+OUTPUT_PATH_MULTI = "../volume/multi_class"
+OUTPUT_PATH_BIN = "../volume/binary_class"
 ERROR_FILES = [ "../data/Abyssinian_34.jpg", \
                 "../data/Egyptian_Mau_139.jpg", \
                 "../data/Egyptian_Mau_145.jpg",\
@@ -47,8 +50,7 @@ def create_dir(path):
                 raise
     return
 
-## TODO: PCA dimensionality reduction must be done, code NOT runnable
-def get_raw_features(files, output_path, normalize, verbose):
+def get_raw_features(files, output_path, pca=False, normalize=False, verbose=False):
     '''
     Function builds and writes raw features. Reduces the dimensionality of all
     features to 100,000 dimensions, regardless of the dimensionality.
@@ -58,6 +60,8 @@ def get_raw_features(files, output_path, normalize, verbose):
             features from
         output_path: string, path to where the data should be written; by
             default it will be OUTPUT_PATH
+        pca: bool value to indicate whether the features dimensionality should
+            be reduced to 10,000 instead of 256x256 = 65,536 dimensions
         normalize: bool value to indicate whether the features should be
                 normalized before writing them to disk
         verbose: bool value to indicate whether verbose output is printed to
@@ -65,9 +69,9 @@ def get_raw_features(files, output_path, normalize, verbose):
 
     RETURNS:
         Nothing
-
     '''
     create_dir(output_path)
+    filename = "raw_features"
     print "obtaining the raw features"
     t0 = time.time()
     data = []
@@ -79,22 +83,29 @@ def get_raw_features(files, output_path, normalize, verbose):
             continue
         t1 = time.time()
         img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
-        if resize:
-            img = cv2.resize(img, (350, 400))
+        img = cv2.resize(img, (256, 256))
         data.append(img.flatten())
         if verbose:
             num += 1
             print "\traw feature for image", num, "took", time.time() - t1,
-            print "seconds"
+            print "seconds with shape", img.flatten().shape
     # end for
-    data = PCA(n_components=100000).fit(data).transform(data)
+    print "obtaining the raw features took", time.time() - t0, "seconds"
+    if pca:
+        t0 = time.time()
+        print "starting PCA (without whitening)"
+        data = scale(data)
+        data = PCA(n_components=10000).fit_transform(data)
+        print "PCA took", time.time() - t0, "seconds"
+        filename += "_pca"
     if normalize:
         data = MinMaxScaler().fit_transform(data)
+        filename += "_normalized"
     print "writing to file..."
-    np.save(os.path.join(output_path, "raw_features"), data)
+    np.save(os.path.join(output_path, filename), data)
     return
 
-def get_histo_extraction(files, output_path, normalize, verbose):
+def get_histo_extraction(files, output_path, normalize=False, verbose=False):
     '''
     Function builds and writes color histogram features.
 
@@ -113,6 +124,11 @@ def get_histo_extraction(files, output_path, normalize, verbose):
 
     '''
     create_dir(output_path)
+    filename = "histo_features.npy"
+    if os.path.isfile(os.path.join(output_path, filename)):
+        print "Descriptors file already exists"
+        return np.load(os.path.join(output_path, filename))
+    filename = "histo_features"
     print "obtaining the histo features"
     t0 = time.time()
     data = []
@@ -135,11 +151,12 @@ def get_histo_extraction(files, output_path, normalize, verbose):
     # end for
     if normalize:
         data = MinMaxScaler().fit_transform(data)
+        filename += "_normalized"
     print "writing to file..."
-    np.save(os.path.join(output_path, "histo_features"), data)
+    np.save(os.path.join(output_path, filename), data)
     return
 
-def extract_descriptors(files, output_path, verbose, des_type):
+def extract_descriptors(files, output_path, des_type, verbose=False):
     '''
     Function to extract descriptors from images. Writes to a numpy file in the
     output_path.
@@ -149,11 +166,11 @@ def extract_descriptors(files, output_path, verbose, des_type):
             features from
         output_path: string, path to where the data should be written; by
             default it will be OUTPUT_PATH
-        verbose: bool value to indicate whether verbose output is printed to
-            console
         des_type: string to indicate what kind of extraction technique should
             be use; extraction techniques are 'sift' and 'surf'; if type not
             recognized, code will return None
+        verbose: bool value to indicate whether verbose output is printed to
+            console
 
     RETURNS:
         If the descriptors already exist in ouput_path, then it will load the
@@ -162,7 +179,7 @@ def extract_descriptors(files, output_path, verbose, des_type):
     '''
     des_filename = des_type.strip().lower() + "_descriptors.npy"
     if os.path.isfile(os.path.join(output_path, des_filename)):
-        print "File already exists"
+        print "Descriptors file already exists"
         return np.load(os.path.join(output_path, des_filename))
     descriptors = []
     print "obtaining the descriptors"
@@ -204,11 +221,69 @@ def extract_descriptors(files, output_path, verbose, des_type):
         np.save(os.path.join(output_path, "surf_descriptors"), descriptors)
     return descriptors
 
+def get_mapped_descriptors(files, verbose, des_type):
+    '''
+    Function to extract descriptors from images, mapping which set of descriptors
+    belong to which image. Writes to file to avoid a recomputing in a second
+    run.
+
+    PARAMETERS:
+        files: an array of all the image paths in the directory to extract
+            features from
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
+        des_type: string to indicate what kind of extraction technique should
+            be use; extraction techniques are 'sift' and 'surf'; if type not
+            recognized, code will return None
+        verbose: bool value to indicate whether verbose output is printed to
+            console
+
+    RETURNS:
+        A list of tuples of the form (image_name, descriptors) where image_name
+        is a string value and descriptors are the corresponding descriptors for
+        that image in a numpy array.
+    '''
+
+    images_and_descriptors = []
+    print "obtaining the descriptors"
+    num = 0
+    t0 = time.time()
+    for file in files:
+        if file in ERROR_FILES:
+            print "Cannot detect image:", file
+            print "Skipping..."
+            continue
+        t1 = time.time()
+        img = cv2.cvtColor(cv2.imread(file), cv2.COLOR_BGR2GRAY)
+        img = cv2.resize(img, (350, 400))
+        if des_type.strip().lower() == "sift":
+            extractor = cv2.xfeatures2d.SIFT_create()
+        elif des_type.strip().lower() == "surf":
+            extractor = cv2.xfeatures2d.SURF_create()
+        else:
+            print "Descriptor type not recognized."
+            return None
+        keypoints, des = extractor.detectAndCompute(img, None)
+        images_and_descriptors.append((file, des))
+        if verbose:
+            num += 1
+            if des_type.strip().lower() == "sift":
+                print "\tSIFT descriptors for image", num, "took", time.time() - t1,
+                print "seconds",
+            elif des_type.strip().lower() == "surf":
+                print "\tSURF descriptors for image", num, "took", time.time() - t1,
+                print "seconds",
+            print "with shape", des.shape
+    # end for
+    print "getting all the descriptors took", time.time() - t0, "seconds"
+    print "writing to files..."
+    return images_and_descriptors
+
 def create_vocabulary(output_path, des_type, k=1024):
     '''
     Function to generate the vocabulary of the image set using the descriptors
-        using KMeans Clustering Algorithm -- current implementation uses
-        parallelized sklearn.cluster.KMeans()
+    using KMeans Clustering Algorithm -- current implementation uses
+    parallelized sklearn.cluster.KMeans()
 
     PARAMETERS:
         output_path: string, path to where the data should be written; by
@@ -226,7 +301,7 @@ def create_vocabulary(output_path, des_type, k=1024):
     '''
     vocab_filename = des_type.strip().lower() + "_vocabulary_" + str(k) + ".npy"
     if os.path.isfile(os.path.join(output_path, vocab_filename)):
-        print "File already exists"
+        print "Vocab file already exists"
         return np.load(os.path.join(output_path, vocab_filename))
     print "starting kmeans clustering"
     t0 = time.time()
@@ -243,7 +318,7 @@ def create_vocabulary(output_path, des_type, k=1024):
 def vector_quantization(images_and_descriptors, vocab):
     '''
     Function to do vector quantization to generate single-row feature vectors
-        representing the given images.
+    representing the given images.
 
     PARAMETERS:
         images_and_descriptors: list of tuples of the form (image_name, descriptors)
@@ -267,9 +342,8 @@ def vector_quantization(images_and_descriptors, vocab):
     print "vector quantization took", time.time() - t0, "seconds"
     return data
 
-
-def get_keypoint_features(files, output_path, des_type, weighting, normalize, \
-        verbose, vlad=False,):
+def get_keypoint_features(files, output_path, des_type, weighting=False, \
+        normalize=False, verbose=False, vlad=False, k=1024):
     '''
     Function that builds and writes keypoint features (SIFT or SURF features)
         Calls:  extract_descriptors(...)
@@ -295,12 +369,12 @@ def get_keypoint_features(files, output_path, des_type, weighting, normalize, \
 
     RETURNS:
         If the features already exist in ouput_path, then it will load the
-            features and return the feature vectors . Otherwise, it will return
-            the features after creating it.
+        features and return the feature vectors . Otherwise, it will return
+        the features after creating it.
     '''
-    filename = des_type + "_features"
-    descriptors = extract_descriptors(files, output_path, verbose, des_type)
-    vocab = create_vocabulary(output_path, des_type, k=1024)
+    filename = des_type + "_features_" + str(k)
+    descriptors = extract_descriptors(files, output_path, des_type, verbose)
+    vocab = create_vocabulary(output_path, des_type, k)
     images_and_descriptors = get_mapped_descriptors(files, verbose, des_type)
     if vlad:
         print "this is vlad"
@@ -310,12 +384,25 @@ def get_keypoint_features(files, output_path, des_type, weighting, normalize, \
         data = vector_quantization(images_and_descriptors, vocab)
     if normalize:
         data = MinMaxScaler().fit_transform(data)
+        filename += "_normalized"
     print "writing to file..."
     np.save(os.path.join(output_path, filename), data)
 
-def write_labels(files, output_path, verbose):
+def create_multi_labels(files, output_path, verbose):
     '''
-    doc here
+    Function to create the multi-class labels and the dictionary that maps
+    a breed name to a label.
+
+    PARAMETERS:
+        files: an array of all the image paths in the directory to extract
+            features from
+        output_path: string, path to where the data should be written; by
+            default it will be OUTPUT_PATH
+        verbose: bool value to indicate whether verbose output is printed to
+            console
+
+    RETURNS:
+        Nothing
     '''
     print "getting the labels"
     t0 = time.time()
@@ -346,75 +433,48 @@ def write_labels(files, output_path, verbose):
     fh.close()
     return
 
-def build_features(input_path=INPUT_PATH, output_path=OUTPUT_PATH, \
-        feature_type="sift", weighting=False, normalize=False, \
-            counter=-1, verbose=False):
-    '''
-    Function to extract features.
-
-    PARAMETERS:
-        input_path: string, path to where the data is located; by default it
-            will be INPUT_PATH
-        output_path: string, path to where the data should be written; by
-            default it will be OUTPUT_PATH
-        feature_type: string, describing the type of feature to be extracted;
-            possible values include 'raw', 'histo', 'sift', 'vlad_sift',
-            'surf', 'vlad-surf', 'alexnet'; if value is not supported, prints
-            error message and returns
-        weighting: bool value to indicate whether tf-idf weighting should be
-            done to the features before writing them to disk; used for 'sift',
-            'surf', 'vlad_sift', 'vlad_surf'
-        normalize: bool value to indicate whether the features should be
-            normalized before writing them to disk; used by all feature types
-        counter: int value to determine how many images should be included in
-            the feature extraction process; default is -1, indicating all
-            features
-        verbose: bool value to indicate whether verbose output is printed to
-            console
-
-    RETURNS:
-        Nothing
-    '''
-    if os.path.isdir(input_path):
-        files = glob.glob(os.path.join(input_path, "*.jpg"))
-    if feature_type.strip().lower() == "raw":
-        raw_extraction(files, output_path, normalize, counter, resize, verbose)
-    elif feature_type.strip().lower() == "histo":
-        histo_extraction(files, output_path, normalize, counter, verbose)
-    elif feature_type.strip().lower() == "sift":
-        sift_extraction(files, output_path, weighting, normalize, counter, \
-            verbose, vlad=False)
-    elif feature_type.strip().lower() == "vlad_sift":
-        sift_extraction(files, output_path, weighting, normalize, counter, \
-            verbose, vlad=True)
-    elif feature_type.strip().lower() == "surf":
-        surf_extraction(files, output_path, weighting, normalize, counter, \
-            verbose, vlad=False)
-    elif feature_type.strip().lower() == "vlad_surf":
-        surf_extraction(files, output_path, weighting, normalize, counter, \
-            verbose, vlad=True)
-    elif feature_type.strip().lower() == "alexnet":
-        print "alexnet"
-    else:
-        print "Feature type not recognized"
+def creat_data_files():
     return
 
 
-## all images are in grayscale
 ## TODO: ADD A FLAG TO CHECK IF THE DATA IS ALREADY THERE OR NOT
 def main():
     create_dir(OUTPUT_PATH) # creates the top-level output directory
-    ## this needs to be heavily modified:
-    # build_features(output_path=OUTPUT_PATH, feature_type="raw", counter=10,\
+    # create_vocabulary(output_path=OUTPUT_PATH, des_type='surf', k=1024)
+    files = glob.glob(os.path.join(INPUT_PATH, "*.jpg"))
+    ##SIFT
+    # get_keypoint_features(files=files, output_path=OUTPUT_PATH, des_type='sift',\
     #     verbose=True)
-    ## BUILT FEATURE:
-    # build_features(output_path=OUTPUT_PATH, feature_type="histo", counter=-1,\
-    #     verbose=True)
-    # build_features(output_path=OUTPUT_PATH, feature_type="sift", counter=10,\
-    #     verbose=True)
-    # build_features(output_path=OUTPUT_PATH, feature_type="surf", counter=1500,\
-    #     verbose=True)
+    # print len(sifty)
+    # print len(sifty[0])
+    ##SURF
+    # get_keypoint_features(files=files, output_path=OUTPUT_PATH, des_type='surf',\
+    #     verbose=True, k=1000)
+    ##RAW
+    # get_raw_features(files=files, output_path=OUTPUT_PATH, pca=True, verbose=True)
+    ##HISTO
+    # get_histo_extraction(files=files, output_path=OUTPUT_PATH, verbose=True)
 
+
+
+    ## test run for sift:
+
+
+
+
+    # training_files = shuffle(files, random_state=10038, n_samples=3000)
+    # des = extract_descriptors(files=training_files, output_path=OUTPUT_PATH, \
+    #     verbose=True, des_type='sift')
+    # vocab = create_vocabulary(output_path=OUTPUT_PATH, des_type='sift', k=1024)
+    # get_keypoint_features(files=training_files, output_path=OUTPUT_PATH, \
+    #     des_type='sift', verbose=True)
+        # raw = np.load("../volume/raw_features.npy")
+        # raw = MinMaxScaler().fit_transform(raw)
+        # np.save("../volume/raw_features_normalized", raw)
+        # t0 = time.time()
+        # raw = PCA(n_components=10000).fit_transform(raw)
+        # print time.time() - t0
+        # np.save("../volume/raw_features_pca", raw)
 
 
 
