@@ -67,4 +67,5 @@ volumes/
 # Ignore Mac specific files
 .DS_Store
 
-
+data
+results
