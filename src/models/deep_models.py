@@ -29,35 +29,35 @@ class ConvolutionalDenoisingAutoencoder(nn.Module):
         )
         self.decoder = nn.Sequential(
             nn.Conv2d(16, 32, 3),
-            nn.ReLU(True)
+            nn.ReLU(True),
             nn.Upsample(
                 size=(2, 2),
                 mode='bilinear',
                 align_corners=True
             ),
             nn.Conv2d(32, 32, 3),
-            nn.ReLU(True)
+            nn.ReLU(True),
             nn.Upsample(
                 size=(2, 2),
                 mode='bilinear',
                 align_corners=True
             ),
             nn.Conv2d(32, 16, 3),
-            nn.ReLU(True)
+            nn.ReLU(True),
             nn.Upsample(
                 size=(2, 2),
                 mode='bilinear',
                 align_corners=True
             ),
             nn.Conv2d(16, 16, 3),
-            nn.ReLU(True)
+            nn.ReLU(True),
             nn.Upsample(
                 size=(2, 2),
                 mode='bilinear',
                 align_corners=True
             ),
             nn.Conv2d(16, 8, 3),
-            nn.ReLU(True)
+            nn.ReLU(True),
             nn.Upsample(
                 size=(2, 2),
                 mode='bilinear',
