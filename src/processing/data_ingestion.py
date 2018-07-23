@@ -37,14 +37,38 @@ def load_data(dir_path=IMG_DIR, batch_size=32, num_workers=0):
         data = HolidayDataset(
             dir_path=dir_path,
             transform=__get_transformations())
-        dataloader = __create_data_loader(
-            data,
+        dataloaders = train_val_split_loader(
+            dataset=data,
             batch_size=batch_size,
             num_workers=num_workers)
     except OSError:
         print 'Directory not found. Loading data failed. Existing...'
         exit(-1)
-    return dataloader
+    return dataloaders
+
+def train_val_split_loader(dataset, batch_size, num_workers=0):
+    num_train = len(dataset)
+    indices = list(range(num_train))
+    split = 4
+
+    validation_idx = np.random.choice(indices, size=split, replace=False)
+    train_idx = list(set(indices) - set(validation_idx))
+
+    train_sampler = SubsetRandomSampler(train_idx)
+    validation_sampler = SubsetRandomSampler(validation_idx)
+
+    trainloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        num_workers=num_workers)
+    validationloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=validation_sampler,
+        num_workers=num_workers)
+    return trainloader, validationloader
+
 
 def __create_data_loader(dataset, batch_size, num_workers=0):
     return DataLoader(
