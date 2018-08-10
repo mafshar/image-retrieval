@@ -39,11 +39,11 @@ def train(train_loader, num_epochs=20):
                 'epoch [{}/{}], loss:{:.4f}'
                 .format(epoch+1, num_epochs, loss.data[0])
             )
-            if epoch % 5 == 0:
-                vutils.save_image(
-                    output.data,
-                    join(RESULTS_DIR, '/image_{}.png'.format(epoch))
-                )
+            # if epoch % 5 == 0:
+            #     vutils.save_image(
+            #         output.data,
+            #         join(RESULTS_DIR, '/image_{}.png'.format(epoch))
+            #     )
     torch.save(autoencoder.state_dict(), join(MODELS_DIR, 'autoencoder.pth'))
     return
 

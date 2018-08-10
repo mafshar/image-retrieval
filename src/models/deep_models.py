@@ -22,52 +22,39 @@ class ConvolutionalDenoisingAutoencoder(nn.Module):
             nn.MaxPool2d(2, stride=2),
             nn.Conv2d(8, 16, 3),
             nn.ReLU(True),
-            nn.MaxPool2d(2, stride=2),
-            nn.Conv2d(16, 16, 3),
-            nn.ReLU(True),
             nn.MaxPool2d(2, stride=2)
+            # nn.Conv2d(16, 16, 3),
+            # nn.ReLU(True),
+            # nn.MaxPool2d(2, stride=2)
         )
         self.decoder = nn.Sequential(
-            nn.Conv2d(16, 32, 3),
+            nn.ConvTranspose2d(16, 32, 3),
             nn.ReLU(True),
-            nn.Upsample(
-                size=(2, 2),
-                mode='bilinear',
-                align_corners=True
-            ),
-            nn.Conv2d(32, 32, 3),
+            # nn.Upsample(size=(2, 2), mode='bilinear', align_corners=True),
+            nn.ConvTranspose2d(32, 32, 3),
             nn.ReLU(True),
-            nn.Upsample(
-                size=(2, 2),
-                mode='bilinear',
-                align_corners=True
-            ),
-            nn.Conv2d(32, 16, 3),
+            # nn.Upsample(size=(2, 2), mode='bilinear', align_corners=True),
+            nn.ConvTranspose2d(32, 16, 3),
             nn.ReLU(True),
-            nn.Upsample(
-                size=(2, 2),
-                mode='bilinear',
-                align_corners=True
-            ),
-            nn.Conv2d(16, 16, 3),
+            # nn.Upsample(size=(2, 2), mode='bilinear', align_corners=True),
+            nn.ConvTranspose2d(16, 3, 3),
             nn.ReLU(True),
-            nn.Upsample(
-                size=(2, 2),
-                mode='bilinear',
-                align_corners=True
-            ),
-            nn.Conv2d(16, 8, 3),
-            nn.ReLU(True),
-            nn.Upsample(
-                size=(2, 2),
-                mode='bilinear',
-                align_corners=True
-            ),
-            nn.Conv2d(8, 3, 3)
+            # nn.Upsample(size=(2, 2), mode='bilinear', align_corners=True),
+            # nn.ConvTranspose2d(16, 8, 3),
+            # nn.ReLU(True),
+            # nn.Upsample(size=(2, 2), mode='bilinear', align_corners=True),
+            # nn.ConvTranspose2d(8, 3, 3),
+            nn.Tanh()
         )
         return
 
     def forward(self, x):
         encoded = self.encoder(x)
+        print x.size()
+        print
+        print encoded.size()
+        print
         decoded = self.decoder(encoded)
+        print decoded.size()
+        print
         return decoded
